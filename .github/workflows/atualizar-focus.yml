@@ -1,0 +1,27 @@
+name: Atualizar Focus
+
+on:
+  schedule:
+    - cron: "0 15 * * 1"   # toda segunda, 12h de Brasília
+  workflow_dispatch:        # botão para rodar na hora
+
+permissions:
+  contents: write
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python focus_ipca.py
+      - name: Salvar no repositório
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add graficos dados
+          git diff --staged --quiet || git commit -m "Atualiza Focus de $(date +'%d/%m/%Y')"
+          git push
