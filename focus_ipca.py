@@ -1,6 +1,6 @@
 """
 focus_ipca.py — Busca as projeções de IPCA do Boletim Focus na API do Banco Central,
-salva o histórico em CSV e gera o gráfico nas cores da Legacy Research.
+salva o histórico em CSV e gera o gráfico.
 
 Roda sozinho toda segunda-feira pelo GitHub Actions (.github/workflows/atualizar-focus.yml).
 """
@@ -10,6 +10,7 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")  # gera a imagem sem precisar de tela (o GitHub roda sem monitor)
 import matplotlib.dates
+import matplotlib.ticker
 import matplotlib.pyplot as plt
 import pandas as pd
 import requests
@@ -21,7 +22,7 @@ ANOS = [str(ANO), str(ANO + 1)]
 PASTA_GRAFICOS = Path("graficos")
 PASTA_DADOS = Path("dados")
 
-# Cores da Legacy
+# Cores do gráfico
 FUNDO = "#000000"
 TEXTO = "#FFFFFF"
 GRADE = "#333333"
@@ -39,7 +40,7 @@ def buscar_dados():
         "&$format=json"
         "&$select=Data,DataReferencia,Mediana"
     )
-    headers = {"User-Agent": "Mozilla/5.0 (focus-tracker; Legacy Research)"}
+    headers = {"User-Agent": "Mozilla/5.0 (focus-tracker)"}
     resposta = requests.get(url, headers=headers, timeout=60)
     resposta.raise_for_status()
 
@@ -58,17 +59,25 @@ def gerar_grafico(df):
     ax.axhspan(1.5, 4.5, color="#FFFFFF", alpha=0.06)
     ax.axhline(3.0, color="#AAAAAA", linestyle="--", linewidth=1.2)
     ax.text(df["Data"].iloc[0], 3.0, " Meta 3%", color="#AAAAAA", va="bottom", fontsize=10)
-    ax.text(df["Data"].iloc[0], 4.5, " Teto 4,5%", color="#777777", va="bottom", fontsize=9)
+    ax.text(df["Data"].iloc[0], 4.5, " Teto 4,5%", color="#777777", va="top", fontsize=9)
 
     # Uma linha para cada ano
+    ultimos = []
     for ano, cor in zip(ANOS, CORES):
         dados = df[df["DataReferencia"] == ano]
         if dados.empty:
             continue
         ax.plot(dados["Data"], dados["Mediana"], color=cor, linewidth=2.5, label=f"IPCA {ano}")
-        ultimo = dados.iloc[-1]
-        ax.annotate(f"{ultimo['Mediana']:.2f}%", (ultimo["Data"], ultimo["Mediana"]),
-                    xytext=(8, 0), textcoords="offset points",
+        ultimos.append((dados.iloc[-1], cor))
+
+    # Valor mais recente na ponta de cada linha, com vírgula decimal.
+    # Se os dois valores estiverem muito próximos, um rótulo sobe e o outro desce para não se sobreporem.
+    ultimos.sort(key=lambda item: item[0]["Mediana"])
+    perto = len(ultimos) == 2 and abs(ultimos[0][0]["Mediana"] - ultimos[1][0]["Mediana"]) < 0.25
+    for i, (ultimo, cor) in enumerate(ultimos):
+        deslocamento = (-9 if i == 0 else 9) if perto else 0
+        ax.annotate(f"{ultimo['Mediana']:.2f}%".replace(".", ","), (ultimo["Data"], ultimo["Mediana"]),
+                    xytext=(8, deslocamento), textcoords="offset points",
                     color=cor, fontweight="bold", va="center")
 
     data_txt = df["Data"].max().strftime("%d/%m/%Y")
@@ -81,8 +90,9 @@ def gerar_grafico(df):
     ax.grid(color=GRADE, linewidth=0.6)
     ax.margins(x=0.08)
     ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter("%d/%m"))
+    ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda y, _: f"{y:.1f}".replace(".", ",")))
     ax.legend(facecolor=FUNDO, edgecolor=GRADE, labelcolor=TEXTO, loc="lower left")
-    fig.text(0.99, 0.01, "Legacy Research · Fonte: Focus/BCB", color="#888888", ha="right", fontsize=9)
+    fig.text(0.99, 0.01, "Fonte: Boletim Focus/BCB", color="#888888", ha="right", fontsize=9)
 
     plt.tight_layout()
     PASTA_GRAFICOS.mkdir(exist_ok=True)
