@@ -12,3 +12,7 @@ Toda segunda-feira, um robô no GitHub Actions busca os dados na API do Banco Ce
 - `dados/focus_ipca.csv`: histórico das projeções
 
 Fonte: Banco Central do Brasil (Boletim Focus).
+
+## SQL
+O `focus_sql.py` guarda o histórico do Focus num banco SQLite e responde três perguntas com SQL:
+a última projeção de cada indicador, a maior e a menor projeção de IPCA e a média por indicador e ano.
